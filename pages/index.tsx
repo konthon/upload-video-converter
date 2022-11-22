@@ -1,38 +1,19 @@
-import { createFFmpeg, fetchFile, FFmpeg } from '@ffmpeg/ffmpeg'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { DropzoneOptions, FileWithPath, useDropzone } from 'react-dropzone'
 
-const MAX_WIDTH = 480 // 480p
+import useShrinkVideo from 'hooks/useShrinkVideo'
 
 export default function Home() {
   const [resultVideo, setResultVideo] = useState('')
-  const [ffMpeg, setFfMpeg] = useState<FFmpeg>()
-  const [progress, setProgress] = useState<number>()
+  const [videoPreview, setVideoPreview] = useState('')
+  const videoRef = useRef(null)
 
-  const onDrop: DropzoneOptions['onDrop'] = async (
-    acceptedFiles: FileWithPath[]
-  ) => {
-    if (acceptedFiles[0] && ffMpeg) {
-      console.log(acceptedFiles[0].path)
-      if (!ffMpeg.isLoaded()) {
-        await ffMpeg.load()
-      }
-      ffMpeg.FS('writeFile', 'input.mp4', await fetchFile(acceptedFiles[0]))
-      ffMpeg.setProgress(({ ratio }) => {
-        setProgress(Math.abs(ratio * 100))
-      })
-      await ffMpeg.run(
-        '-i',
-        'input.mp4',
-        '-c:v',
-        'libx264',
-        '-vf',
-        `scale='min(${MAX_WIDTH},iw)':-1`,
-        '-c:a',
-        'copy',
-        'output.mp4'
-      )
-      const outputVideo = ffMpeg.FS('readFile', 'output.mp4')
+  const { shrinkVideo, cancel, isLoading, progress, getVideoPreview } =
+    useShrinkVideo()
+
+  const onDrop: DropzoneOptions['onDrop'] = async (acceptedFiles) => {
+    if (acceptedFiles[0]) {
+      const outputVideo = await shrinkVideo(acceptedFiles[0])
       if (outputVideo) {
         setResultVideo(
           URL.createObjectURL(
@@ -45,15 +26,13 @@ export default function Home() {
   const { getRootProps, getInputProps } = useDropzone({ onDrop })
 
   useEffect(() => {
-    const init = () => {
-      const initialFFmpeg = createFFmpeg({
-        log: true,
-        corePath: 'http://localhost:3000/scripts/ffmpeg-core.js',
-      })
-      setFfMpeg(initialFFmpeg)
+    if (resultVideo && videoRef.current) {
+      const preview = getVideoPreview(videoRef.current)
+      if (preview.src) {
+        setVideoPreview(preview.src)
+      }
     }
-    init()
-  }, [])
+  }, [resultVideo, videoRef])
 
   return (
     <div className='container'>
@@ -62,21 +41,12 @@ export default function Home() {
         <div>drag n drop or</div>
         <button className='btn btn-primary'>upload</button>
       </div>
-      {ffMpeg &&
-        ffMpeg.isLoaded() &&
-        !!progress &&
-        progress > 0 &&
-        progress < 100 && (
-          <button
-            className='btn btn-danger'
-            onClick={() => {
-              ffMpeg.exit()
-            }}
-          >
-            cancel
-          </button>
-        )}
-      {!!progress && (
+      {isLoading && !!progress && progress > 0 && progress < 100 && (
+        <button className='btn btn-danger' onClick={() => cancel()}>
+          cancel
+        </button>
+      )}
+      {isLoading && !!progress && (
         <div className='progress'>
           <div
             className='progress-bar progress-bar-striped progress-bar-animated'
@@ -91,6 +61,7 @@ export default function Home() {
       )}
       {!!resultVideo && (
         <video
+          ref={videoRef}
           src={resultVideo}
           controls
           onLoad={() => URL.revokeObjectURL(resultVideo)}
@@ -98,6 +69,11 @@ export default function Home() {
           style={{ maxWidth: '100%' }}
         />
       )}
+      <img
+        src={videoPreview}
+        alt=''
+        // onLoad={() => URL.revokeObjectURL(videoPreview)}
+      />
     </div>
   )
 }
