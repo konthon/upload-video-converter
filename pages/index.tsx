@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { DropzoneOptions, FileWithPath, useDropzone } from "react-dropzone";
 
 const MAX_WIDTH = 480; // 480p
+const MAX_HEIGHT = 270; // 270p
 
 export default function Home() {
   const [resultVideo, setResultVideo] = useState("");
@@ -27,7 +28,7 @@ export default function Home() {
         "-c:v",
         "libx264",
         "-vf",
-        `scale='min(${MAX_WIDTH},iw)':'min(${MAX_WIDTH},ih)'`,
+        `scale='min(${MAX_WIDTH},iw)':-1`,
         // `scale=iw*${targetScale}:ih*${targetScale}`,
         "-c:a",
         "aac",
