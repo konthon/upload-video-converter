@@ -8,7 +8,7 @@ const useShrinkVideo = (options?: CreateFFmpegOptions) => {
   const [isLoading, setIsLoading] = useState(false)
   const [progress, setProgress] = useState(0)
 
-  const shrinkVideo = async (file: File, maxWidth: number = 480) => {
+  const shrinkVideo = async (file: File, maxHeight: number = 720) => {
     if (ffmpeg) {
       setIsLoading(true)
       if (!ffmpeg.isLoaded()) {
@@ -21,12 +21,20 @@ const useShrinkVideo = (options?: CreateFFmpegOptions) => {
       await ffmpeg.run(
         '-i',
         'input.mp4',
+        '-preset',
+        'ultrafast',
         '-c:v',
         'libx264',
+        '-crf', // 0-51 lossless-lossy (df: 23) https://superuser.com/a/677580
+        '32',
         '-vf',
-        `scale='min(${maxWidth},iw)':-1`,
-        '-c:a',
-        'copy',
+        `scale=-1:'min(${maxHeight},ih)'`,
+        '-b:v',
+        '64K',
+        '-r',
+        '24',
+        // '-c:a',
+        // 'aac',
         'output.mp4'
       )
       const outputVideo = ffmpeg.FS('readFile', 'output.mp4')
