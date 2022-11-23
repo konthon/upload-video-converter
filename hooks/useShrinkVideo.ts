@@ -3,24 +3,31 @@ import { useEffect, useState } from 'react'
 
 import type { CreateFFmpegOptions, FFmpeg } from '@ffmpeg/ffmpeg'
 
+const getFileNames = (file: File) => {
+  const inputFileName = file.name
+  const outputFileName = inputFileName.replace(/\.([^.]+)$/, '-output.$1')
+  return { inputFileName, outputFileName }
+}
+
 const useShrinkVideo = (options?: CreateFFmpegOptions) => {
   const [ffmpeg, setFfmpeg] = useState<FFmpeg>()
   const [isLoading, setIsLoading] = useState(false)
   const [progress, setProgress] = useState(0)
 
-  const shrinkVideo = async (file: File, maxHeight: number = 720) => {
+  const shrinkVideo = async (videoInput: File, maxHeight: number = 720) => {
+    const { inputFileName, outputFileName } = getFileNames(videoInput)
     if (ffmpeg) {
       setIsLoading(true)
       if (!ffmpeg.isLoaded()) {
         await ffmpeg.load()
       }
-      ffmpeg.FS('writeFile', 'input.mp4', await fetchFile(file))
+      ffmpeg.FS('writeFile', `"${inputFileName}"`, await fetchFile(videoInput))
       ffmpeg.setProgress(({ ratio }) => {
         setProgress(Math.abs(ratio * 100))
       })
       await ffmpeg.run(
         '-i',
-        'input.mp4',
+        `"${inputFileName}"`,
         '-preset',
         'ultrafast',
         '-c:v',
@@ -29,15 +36,15 @@ const useShrinkVideo = (options?: CreateFFmpegOptions) => {
         '32',
         '-vf',
         `scale=-1:'min(${maxHeight},ih)'`,
-        '-b:v',
-        '64K',
+        // '-b:v',
+        // '64K',
         '-r',
         '24',
         // '-c:a',
         // 'aac',
-        'output.mp4'
+        outputFileName
       )
-      const outputVideo = ffmpeg.FS('readFile', 'output.mp4')
+      const outputVideo = ffmpeg.FS('readFile', outputFileName)
       setIsLoading(false)
       setProgress(0)
       return outputVideo
@@ -52,51 +59,32 @@ const useShrinkVideo = (options?: CreateFFmpegOptions) => {
     }
   }
 
-  const getVideoPreview = (
-    video: HTMLVideoElement,
-    format: string = 'jpeg',
-    quality: number = 0.8
-  ) => {
-    const canvas = document.createElement('canvas')
-    canvas.width = video.videoWidth
-    canvas.height = video.videoHeight
-
-    const context2D = canvas.getContext('2d')
-    if (context2D) {
-      context2D.drawImage(video, 0, 0)
-
-      const dataUri = canvas.toDataURL(`image/${format}`, quality)
-      // const data = dataUri.split(',')[1]
-      // const mimeType = dataUri.split(';')[0].slice(5)
-
-      // const bytes = Buffer.from(data, 'base64').toString()
-      // const arrBuffer = new ArrayBuffer(bytes.length)
-      // let arr = new Uint8Array(arrBuffer)
-
-      // for (let index = 0; index < bytes.length; index++) {
-      //   arr[index] = bytes.charCodeAt(index)
-      // }
-
-      // return {
-      //   blob: new Blob([arr], { type: mimeType }),
-      //   dataUri,
-      //   format,
-      // }
-      return {
-        src: dataUri,
+  // https://stackoverflow.com/a/44073745
+  const getThumbnail = async (videoInput: File, maxHeight: number = 720) => {
+    const { inputFileName } = getFileNames(videoInput)
+    if (ffmpeg) {
+      if (!ffmpeg.isLoaded()) {
+        await ffmpeg.load()
       }
+      ffmpeg.FS('writeFile', `"${inputFileName}"`, await fetchFile(videoInput))
+      await ffmpeg.run(
+        '-i',
+        `"${inputFileName}"`,
+        '-vf',
+        'select=eq(n\\,0)',
+        '-vf',
+        `scale=-1:'min(${maxHeight},ih)'`,
+        '-q:v',
+        '5',
+        'thumbnail.jpg'
+      )
+      const thumbnail = ffmpeg.FS('readFile', 'thumbnail.jpg')
+      return thumbnail
     }
-    // return {
-    //   blob: null,
-    //   dataUri: null,
-    //   format,
-    // }
-    return { src: '' }
   }
 
   useEffect(() => {
-    console.log('initialize ffmpeg')
-    if (typeof window !== 'undefined') {
+    if (typeof window !== 'undefined' && !ffmpeg) {
       const initializedFFmpeg = createFFmpeg({
         log: true,
         corePath: `${window.location.origin}/scripts/ffmpeg-core.js`,
@@ -107,19 +95,18 @@ const useShrinkVideo = (options?: CreateFFmpegOptions) => {
     setIsLoading(false)
     return () => {
       if (ffmpeg && ffmpeg.isLoaded()) {
-        console.log('exit ffmpeg')
         ffmpeg.exit()
       }
     }
   }, [])
 
   return {
+    ffmpeg,
     shrinkVideo,
     cancel,
+    getThumbnail,
     isLoading,
     progress,
-    ffmpeg,
-    getVideoPreview,
   }
 }
 

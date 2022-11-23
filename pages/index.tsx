@@ -1,6 +1,8 @@
-import { useEffect, useRef, useState } from 'react'
-import { DropzoneOptions, FileWithPath, useDropzone } from 'react-dropzone'
+/* eslint-disable @next/next/no-img-element */
+import { useRef, useState } from 'react'
+import { DropzoneOptions, useDropzone } from 'react-dropzone'
 
+import useCompressImage from 'hooks/useCompressImage'
 import useShrinkVideo from 'hooks/useShrinkVideo'
 
 export default function Home() {
@@ -8,11 +10,28 @@ export default function Home() {
   const [videoPreview, setVideoPreview] = useState('')
   const videoRef = useRef(null)
 
-  const { shrinkVideo, cancel, isLoading, progress, getVideoPreview } =
+  const { shrinkVideo, cancel, isLoading, progress, getThumbnail } =
     useShrinkVideo()
+  // const { compress, cancel, isLoading, progress } = useCompressImage()
 
   const onDrop: DropzoneOptions['onDrop'] = async (acceptedFiles) => {
     if (acceptedFiles[0]) {
+      // const thumbnail = await compress(acceptedFiles[0])
+      // if (thumbnail) {
+      //   setVideoPreview(
+      //     URL.createObjectURL(
+      //       new Blob([thumbnail.buffer], { type: 'image/jpeg' })
+      //     )
+      //   )
+      // }
+      const thumbnail = await getThumbnail(acceptedFiles[0])
+      if (thumbnail) {
+        setVideoPreview(
+          URL.createObjectURL(
+            new Blob([thumbnail.buffer], { type: 'image/jpeg' })
+          )
+        )
+      }
       const outputVideo = await shrinkVideo(acceptedFiles[0])
       if (outputVideo) {
         setResultVideo(
@@ -24,15 +43,6 @@ export default function Home() {
     }
   }
   const { getRootProps, getInputProps } = useDropzone({ onDrop })
-
-  useEffect(() => {
-    if (resultVideo && videoRef.current) {
-      const preview = getVideoPreview(videoRef.current)
-      if (preview.src) {
-        setVideoPreview(preview.src)
-      }
-    }
-  }, [resultVideo, videoRef])
 
   return (
     <div className='container'>
@@ -69,11 +79,14 @@ export default function Home() {
           style={{ maxWidth: '100%' }}
         />
       )}
-      <img
-        src={videoPreview}
-        alt=''
-        // onLoad={() => URL.revokeObjectURL(videoPreview)}
-      />
+      {!!videoPreview && (
+        <img
+          src={videoPreview}
+          alt='thumbnail'
+          onLoad={() => URL.revokeObjectURL(videoPreview)}
+          style={{ maxWidth: '100%' }}
+        />
+      )}
     </div>
   )
 }
