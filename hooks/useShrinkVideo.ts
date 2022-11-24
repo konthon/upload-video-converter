@@ -35,7 +35,7 @@ const useShrinkVideo = (options?: CreateFFmpegOptions) => {
         '-crf', // 0-51 lossless-lossy (df: 23) https://superuser.com/a/677580
         '32',
         '-vf',
-        `scale=-1:'min(${maxHeight},ih)'`,
+        `scale=-2:'min(${maxHeight},ih)'`,
         // '-b:v',
         // '64K',
         '-r',
